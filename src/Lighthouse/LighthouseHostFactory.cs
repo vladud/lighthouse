@@ -15,6 +15,8 @@ using System.Linq;
 using Akka.Actor;
 using Akka.Configuration;
 using Akka.Configuration.Hocon;
+using Petabridge.Cmd.Cluster;
+using Petabridge.Cmd.Host;
 using ConfigurationException = Akka.Configuration.ConfigurationException;
 
 namespace Lighthouse
@@ -24,16 +26,23 @@ namespace Lighthouse
     /// </summary>
     public static class LighthouseHostFactory
     {
-        public static ActorSystem LaunchLighthouse(string ipAddress = null, int? specifiedPort = null)
+        public static ActorSystem LaunchLighthouse(string specificActorSystemName = null, string ipAddress = null, int? specifiedPort = null, int? petabridgeCmdPort = null)
         {
             var systemName = "lighthouse";
             var section = (AkkaConfigurationSection)ConfigurationManager.GetSection("akka");
             var clusterConfig = section.AkkaConfig;
 
-            var lighthouseConfig = clusterConfig.GetConfig("lighthouse");
-            if (lighthouseConfig != null)
+            if (specificActorSystemName != null)
             {
-                systemName = lighthouseConfig.GetString("actorsystem", systemName);
+                systemName = specificActorSystemName;
+            }
+            else 
+            {
+                var lighthouseConfig = clusterConfig.GetConfig("lighthouse");
+                if (lighthouseConfig != null)
+                {
+                    systemName = lighthouseConfig.GetString("actorsystem", systemName);
+                }
             }
 
             var remoteConfig = clusterConfig.GetConfig("akka.remote");
@@ -56,11 +65,19 @@ namespace Lighthouse
 
             var finalConfig = ConfigurationFactory.ParseString(
                 string.Format(@"akka.remote.dot-netty.tcp.public-hostname = {0} 
-akka.remote.dot-netty.tcp.port = {1}", ipAddress, port))
+akka.remote.dot-netty.tcp.port = {1}
+petabridge.cmd.port = {2}", ipAddress, port, petabridgeCmdPort))
                 .WithFallback(ConfigurationFactory.ParseString(injectedClusterConfigString))
                 .WithFallback(clusterConfig);
 
-            return ActorSystem.Create(systemName, finalConfig);
+            var system = ActorSystem.Create(systemName, finalConfig);
+            if (petabridgeCmdPort != null) {
+                var cmd = PetabridgeCmd.Get(system);
+                cmd.RegisterCommandPalette(ClusterCommands.Instance);
+                cmd.Start();
+            }
+
+            return system;
         }
     }
 }

@@ -17,27 +17,34 @@ namespace Lighthouse
 {
     public class LighthouseService
     {
+        private readonly string _actorSystemName;
         private readonly string _ipAddress;
         private readonly int? _port;
+        private readonly int? _petabridgePort;
 
-        private ActorSystem _lighthouseSystem;
+        private ActorSystem _lighthouseSystemOne;
+        private ActorSystem _lighthouseSystemTwo;
 
-        public LighthouseService() : this(null, null) { }
+        public LighthouseService() : this(null, null, null, null) { }
 
-        public LighthouseService(string ipAddress, int? port)
+        public LighthouseService(string actorSystemName, string ipAddress, int? port, int? petabridgePort)
         {
+            _actorSystemName = actorSystemName;
             _ipAddress = ipAddress;
             _port = port;
+            _petabridgePort = petabridgePort;
         }
 
         public void Start()
         {
-            _lighthouseSystem = LighthouseHostFactory.LaunchLighthouse(_ipAddress, _port);
+            _lighthouseSystemOne = LighthouseHostFactory.LaunchLighthouse("actorSystemOne", "127.0.0.1", 4053, 4063);
+            _lighthouseSystemTwo = LighthouseHostFactory.LaunchLighthouse("actorSystemTwo", "127.0.0.1", 4054, 4064);
         }
 
         public async Task StopAsync()
         {
-            await _lighthouseSystem.Terminate();
+            await _lighthouseSystemOne.Terminate();
+            await _lighthouseSystemTwo.Terminate();
         }
     }
 }
